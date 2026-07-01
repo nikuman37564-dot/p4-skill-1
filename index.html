@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>P4 Style Skill Select - Compact Greenback Fixed</title>
+    <style>
+        :root {
+            --p4-yellow: #ffeb00;
+            --p4-orange: #ff9900;
+            --p4-dark: #121212;
+            --tv-red: #ff0040;
+            --tv-green: #00ff66;
+            --tv-blue: #00a2ff;
+            --chromakey-green: #00ff00; 
+        }
+
+        html, body {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            background-color: var(--chromakey-green);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-family: "Impact", "Helvetica Neue", Arial, "Hiragino Kaku Gothic ProN", sans-serif;
+            overflow: hidden;
+            -webkit-tap-highlight-color: transparent;
+            cursor: pointer;
+        }
+
+        /* ─── 16:9 基準のメインコンテナ ─── */
+        .stage-169 {
+            position: relative;
+            width: 100vw;
+            height: calc(100vw * 9 / 16);
+            max-width: 1066px; 
+            max-height: 600px;
+            background-color: var(--chromakey-green);
+            overflow: hidden;
+            pointer-events: auto; /* コンテナ内もタップ可能 */
+        }
+        @media (max-aspect-ratio: 16/9) {
+            .stage-169 {
+                width: calc(100vh * 16 / 9);
+                height: 100vh;
+            }
+        }
+
+        /* ─── ギミック：アナログテレビの3色（RGB）枠 ─── */
+        .tv-rgb-frame {
+            position: absolute;
+            top: 18%;
+            bottom: 18%;
+            left: 8%;
+            width: 34%; 
+            border-radius: 12px;
+            pointer-events: none;
+            z-index: 10;
+            opacity: 0;
+            transform: scale(0.95);
+            transition: all 0.15s ease-out;
+            overflow: hidden; 
+            background: radial-gradient(circle at center, #443e00 0%, #101001 100%);
+        }
+
+        .tv-rgb-frame::before {
+            content: ""; position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: linear-gradient(rgba(0,0,0,0.3) 2px, transparent 2px);
+            background-size: 100% 4px;
+            z-index: 2;
+        }
+
+        /* bodyに .tv-on がついたら起動 */
+        body.tv-on .tv-rgb-frame {
+            opacity: 1;
+            transform: scale(1);
+            box-shadow: 
+                -4px 0 12px var(--tv-red), 
+                0 0 15px var(--tv-green), 
+                4px 0 12px var(--tv-blue),
+                inset 0 0 20px rgba(0,0,0,0.85);
+            border: 3.5px solid rgba(255,255,255,0.95);
+            animation: tvGlitchPulse 0.2s linear infinite alternate;
+        }
+
+        /* ─── 枠の中を上昇する透明な泡 ─── */
+        .bubble-container {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            z-index: 3;
+            pointer-events: none;
+        }
+        .bubble {
+            position: absolute;
+            bottom: -15px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            border-radius: 50%;
+            box-shadow: inset 0 1px 3px rgba(255,255,255,0.3), 0 0 5px rgba(255, 235, 0, 0.1);
+            animation: floatUp 3.2s linear infinite;
+        }
+
+        @keyframes floatUp {
+            0% { transform: translateY(0) translateX(0) scale(0.7); opacity: 0; }
+            10% { opacity: 1; }
+            90% { opacity: 0.8; }
+            100% { transform: translateY(-350px) translateX(var(--drift)) scale(1.1); opacity: 0; }
+        }
+
+        /* ─── スキルウィンドウのレイアウト ─── */
+        .skill-window {
+            position: absolute;
+            top: 18%;
+            bottom: 18%;
+            left: 8%;
+            width: 34%; 
+            box-sizing: border-box;
+            padding: 38px 12px 12px 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            z-index: 12;
+            opacity: 0;
+            transition: opacity 0.3s ease-in-out;
+            transition-delay: 0.1s;
+            pointer-events: none; 
+        }
+        body.tv-on .skill-window {
+            opacity: 1;
+            pointer-events: auto; 
+        }
+
+        .window-title {
+            position: absolute;
+            top: -14px;
+            left: 20px;
+            background: var(--p4-yellow);
+            color: #000;
+            font-size: 16px; 
+            font-weight: 900;
+            padding: 1px 18px;
+            text-transform: uppercase;
+            transform: skewX(-12deg);
+            border: 2.5px solid #000;
+            box-shadow: 3px 3px 0 #000;
+            letter-spacing: 1.5px;
+        }
+
+        /* ─── スキルアイテム構造 ─── */
+        .skill-row {
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 7px 10px; 
+            background: rgba(0,0,0,0.55);
+            border-radius: 6px;
+            border: 3px solid transparent; 
+            transition: transform 0.1s ease, background-color 0.15s;
+            cursor: pointer;
+        }
+
+        .skill-core {
+            display: flex;
+            align-items: center;
+            gap: 8px; 
+        }
+
+        .attr-icon {
+            width: 24px;
+            height: 24px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .skill-text {
+            font-size: 16px; 
+            font-weight: bold;
+            color: #888;
+            letter-spacing: 0.5px;
+            transition: color 0.15s;
+        }
+
+        .skill-cost {
+            font-size: 12px; 
+            font-weight: 900;
+            color: #666;
+            background: rgba(0,0,0,0.65);
+            padding: 1px 7px;
+            border-radius: 3px;
+            transition: all 0.15s;
+        }
+
+        /* ─── 選択状態 ─── */
+        .skill-row.selected {
+            background: var(--p4-yellow);
+            border: 3px solid #000;
+            border-radius: 10px; 
+            box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+        }
+        
+        .skill-row.selected .skill-text {
+            color: #000;
+            font-weight: 900;
+        }
+
+        .skill-row.selected .skill-cost {
+            background: #000;
+            color: var(--p4-yellow);
+        }
+
+        .target-bullet {
+            width: 0;
+            height: 14px;
+            opacity: 0;
+            transition: width 0.12s ease, opacity 0.12s;
+        }
+        .skill-row.selected .target-bullet {
+            width: 14px;
+            opacity: 1;
+            margin-right: -2px;
+        }
+
+        .nav-arrows {
+            width: 0;
+            height: 16px;
+            opacity: 0;
+            transition: width 0.12s ease, opacity 0.12s;
+        }
+        .skill-row.selected .nav-arrows {
+            width: 16px;
+            opacity: 1;
+            margin-left: 6px;
+            animation: arrowPulse 0.5s ease-in-out infinite alternate;
+        }
+
+        @keyframes arrowPulse {
+            0% { transform: translateY(-1.5px); }
+            100% { transform: translateY(1.5px); }
+        }
+
+        /* ─── 画面案内テキスト ─── */
+        .tap-prompt {
+            position: absolute;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 16px;
+            font-weight: bold;
+            color: var(--p4-yellow);
+            letter-spacing: 2px;
+            text-shadow: 2px 2px 0 #000;
+            pointer-events: none;
+            z-index: 20;
+            transition: opacity 0.2s;
+            border: 2px solid var(--p4-yellow);
+            padding: 8px 16px;
+            background: rgba(0,0,0,0.85);
+        }
+        body.tv-on .tap-prompt {
+            opacity: 0;
+        }
+
+        @keyframes tvGlitchPulse {
+            0% { border-color: rgba(255, 255, 255, 0.9); filter: hue-rotate(0deg); }
+            100% { border-color: rgba(255, 235, 0, 1); filter: hue-rotate(5deg); }
+        }
+    </style>
+</head>
+<!-- 【修正】body 全体にクリックイベントを付与。画面のどこを押しても確実にONになります -->
+<body onclick="tryTurnOnTV(event)">
+
+    <div class="stage-169" id="p4Stage">
+
+        <div class="tap-prompt" id="promptText">TAP ANYWHERE TO START</div>
+
+        <!-- 3色RGB枠 -->
+        <div class="tv-rgb-frame">
+            <div class="bubble-container" id="bubbleMachine"></div>
+        </div>
+
+        <!-- スキル選択ウィンドウ -->
+        <div class="skill-window" id="skillWindow">
+            <div class="window-title">Skill</div>
+
+            <!-- 1. ジオ -->
+            <div class="skill-row selected" onclick="selectSkill(this, event)">
+                <div class="skill-core">
+                    <svg class="target-bullet" viewBox="0 0 24 24">
+                        <circle cx="12" cy="12" r="10" fill="none" stroke="#000" stroke-width="3"/>
+                        <circle cx="12" cy="12" r="4" fill="#000"/>
+                    </svg>
+                    
+                    <div class="attr-icon">
+                        <svg viewBox="0 0 24 24" width="22" height="22">
+                            <polygon points="13,2 3,14 11,14 9,22 21,10 13,10" fill="#ffeb00" stroke="#000" stroke-width="1.5"/>
+                        </svg>
+                    </div>
+
+                    <div class="skill-text">ジオ</div>
+
+                    <svg class="nav-arrows" viewBox="0 0 24 24">
+                        <polygon points="12,2 17,7 7,7" fill="#000"/>
+                        <polygon points="12,22 17,17 7,17" fill="#000"/>
+                    </svg>
+                </div>
+                <div class="skill-cost">4 SP</div>
+            </div>
+
+            <!-- 2. スラッシュ -->
+            <div class="skill-row" onclick="selectSkill(this, event)">
+                <div class="skill-core">
+                    <svg class="target-bullet" viewBox="0 0 24 24">
+                        <circle cx="12" cy="12" r="10" fill="none" stroke="#000" stroke-width="3"/>
+                        <circle cx="12" cy="12" r="4" fill="#000"/>
+                    </svg>
+                    
+                    <div class="attr-icon">
+                        <svg viewBox="0 0 24 24" width="20" height="20">
+                            <path d="M2,21 L7,14 L4,11 L13,6 L10,3 L22,2 L19,14 L16,11 L11,17 L13,20 Z" fill="#ff9900" stroke="#000" stroke-width="1.5"/>
+                        </svg>
+                    </div>
+
+                    <div class="skill-text">スラッシュ</div>
+
+                    <svg class="nav-arrows" viewBox="0 0 24 24">
+                        <polygon points="12,2 17,7 7,7" fill="#000"/>
+                        <polygon points="12,22 17,17 7,17" fill="#000"/>
+                    </svg>
+                </div>
+                <div class="skill-cost">5% HP</div>
+            </div>
+
+            <!-- 3. タルカジャ -->
+            <div class="skill-row" onclick="selectSkill(this, event)">
+                <div class="skill-core">
+                    <svg class="target-bullet" viewBox="0 0 24 24">
+                        <circle cx="12" cy="12" r="10" fill="none" stroke="#000" stroke-width="3"/>
+                        <circle cx="12" cy="12" r="4" fill="#000"/>
+                    </svg>
+                    
+                    <div class="attr-icon">
+                        <svg viewBox="0 0 24 24" width="20" height="20">
+                            <rect x="3" y="6" width="11" height="15" rx="2" fill="#00a2ff" stroke="#000" stroke-width="1.5" transform="rotate(-10 3 6)"/>
+                            <rect x="9" y="4" width="11" height="15" rx="2" fill="#00e5ff" stroke="#000" stroke-width="1.5" transform="rotate(5 9 4)"/>
+                        </svg>
+                    </div>
+
+                    <div class="skill-text">タルカジャ</div>
+
+                    <svg class="nav-arrows" viewBox="0 0 24 24">
+                        <polygon points="12,2 17,7 7,7" fill="#000"/>
+                        <polygon points="12,22 17,17 7,17" fill="#000"/>
+                    </svg>
+                </div>
+                <div class="skill-cost">12 SP</div>
+            </div>
+
+        </div>
+
+    </div>
+
+    <script>
+        // 音源ファイル名
+        const SE_TV_ON = "決定ボタンを押す12.mp3";    
+        const SE_SELECT = "決定ボタンを押す7.mp3";   
+
+        const audioTvOn = new Audio(SE_TV_ON);
+        const audioSelect = new Audio(SE_SELECT);
+
+        let tvIsOn = false;
+
+        // ─── 泡の生成 ───
+        const machine = document.getElementById('bubbleMachine');
+        const count = 12;
+
+        for(let i = 0; i < count; i++) {
+            const bubble = document.createElement('div');
+            bubble.className = 'bubble';
+            const size = Math.random() * 8 + 4; 
+            bubble.style.width = `${size}px`;
+            bubble.style.height = `${size}px`;
+            bubble.style.left = `${Math.random() * 100}%`;
+            bubble.style.animationDelay = `${Math.random() * 3.2}s`;
+            bubble.style.animationDuration = `${Math.random() * 1.5 + 2s}`;
+            bubble.style.setProperty('--drift', `${(Math.random() - 0.5) * 35}px`);
+            machine.appendChild(bubble);
+        }
+
+        // ─── 【修正】画面全域対応のテレビオン処理 ───
+        function tryTurnOnTV(event) {
+            if (tvIsOn) return; 
+            tvIsOn = true;
+
+            // クラス追加を最優先で行い、確実に画面を表示させる
+            document.body.classList.add('tv-on');
+            
+            // 音声再生（エラーが起きても画面表示は妨げない）
+            audioTvOn.currentTime = 0;
+            audioTvOn.play().catch(e => console.log("Audio play blocked or file missing:", e));
+        }
+
+        // ─── 選択肢の移動機能 ───
+        function selectSkill(element, event) {
+            // bodyへのイベント伝播を止め、再起動の誤動作を防ぐ
+            event.stopPropagation();
+
+            // まだTVがONになっていない場合は処理しない
+            if (!tvIsOn) return;
+            // すでに選択中なら無視
+            if (element.classList.contains('selected')) return;
+
+            const rows = document.querySelectorAll('.skill-row');
+            rows.forEach(row => row.classList.remove('selected'));
+
+            element.classList.add('selected');
+
+            audioSelect.currentTime = 0;
+            audioSelect.play().catch(e => console.log("Audio play blocked or file missing:", e));
+        }
+    </script>
+</body>
+</html>
